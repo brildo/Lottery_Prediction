@@ -1,0 +1,192 @@
+<view class="container">
+  <!-- Header -->
+  <view class="header">
+    <view class="logo-box">
+      <view class="sparkles-icon"></view>
+    </view>
+    <view class="title">灵感彩票占卜</view>
+    <view class="subtitle">倾听你的日常，洞察幸运数字</view>
+  </view>
+
+  <!-- Main Content -->
+  <view class="main-content">
+    
+    <!-- Input Section -->
+    <view class="card" wx:if="{{!result}}">
+      <view class="card-title">
+        <view class="dot"></view>
+        <text>描述今日特别经历</text>
+      </view>
+
+      <view class="input-area">
+        <!-- Audio Recorder -->
+        <view class="audio-recorder">
+          <view wx:if="{{!audioPath}}" class="record-btn-wrapper" bindtap="toggleRecord">
+            <view class="record-btn {{isRecording ? 'recording' : ''}}">
+              <view class="{{isRecording ? 'square-icon' : 'mic-icon'}}"></view>
+              <text class="record-text">{{isRecording ? '停止录音' : '点击录音'}}</text>
+              <view wx:if="{{isRecording}}" class="record-ring"></view>
+            </view>
+          </view>
+          
+          <view wx:else class="audio-player">
+            <view class="play-btn" bindtap="playAudio">
+              <view class="{{isPlaying ? 'pause-icon' : 'play-icon'}}"></view>
+            </view>
+            <view class="progress-bar-wrapper">
+              <view class="progress-track">
+                <view class="progress-fill"></view>
+              </view>
+              <text class="audio-status">语音已录制</text>
+            </view>
+            <view class="delete-btn" bindtap="clearAudio">
+              <view class="trash-icon"></view>
+            </view>
+          </view>
+        </view>
+
+        <view class="divider" wx:if="{{!audioPath}}">
+          <view class="line"></view>
+          <text class="or-text">或输入文字</text>
+        </view>
+
+        <textarea
+          wx:if="{{!audioPath}}"
+          class="text-input"
+          value="{{manualText}}"
+          bindinput="onTextInput"
+          placeholder="例如：今天早上出门看到一只橘猫在抓蝴蝶..."
+          placeholder-class="placeholder"
+        />
+        
+        <view wx:if="{{audioPath}}" class="mt-4 text-center">
+          <text class="or-text" style="text-decoration: underline;" bindtap="clearAudio">删除语音并使用文字输入</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- Settings Section -->
+    <view class="card" wx:if="{{!result}}">
+      <view class="setting-group">
+        <text class="setting-label">选择彩种</text>
+        <view class="grid-2">
+          <view wx:for="{{['双色球', '大乐透', '福彩3D', '排列三']}}" wx:key="*this"
+                class="lottery-btn {{lotteryType === item ? 'active' : ''}}"
+                bindtap="selectLotteryType" data-type="{{item}}">
+            {{item}}
+          </view>
+        </view>
+      </view>
+
+      <view class="setting-group mt-4">
+        <text class="setting-label">预测注数</text>
+        <view class="tab-group">
+          <view wx:for="{{[1, 2, 5]}}" wx:key="*this"
+                class="tab-btn {{numSets === item ? 'active' : ''}}"
+                bindtap="selectNumSets" data-num="{{item}}">
+            {{item}} 注
+          </view>
+        </view>
+      </view>
+
+      <view class="setting-group mt-4 row-between">
+        <text class="setting-label no-mb">获取附近彩票店推荐</text>
+        <switch checked="{{recommendShop}}" bindchange="toggleRecommendShop" color="#a855f7" />
+      </view>
+
+      <view wx:if="{{recommendShop}}" class="setting-group mt-4">
+        <view class="row-between" style="display:flex;">
+          <text class="setting-label no-mb">搜索半径</text>
+          <text class="setting-label no-mb" style="color:#c084fc;">{{searchRadius / 1000}} 公里</text>
+        </view>
+        <slider 
+          min="1000" 
+          max="10000" 
+          step="1000" 
+          value="{{searchRadius}}" 
+          bindchange="onRadiusChange" 
+          activeColor="#a855f7" 
+          backgroundColor="rgba(255,255,255,0.1)" 
+          blockSize="18"
+        />
+      </view>
+
+      <!-- Map Display in Form -->
+      <view wx:if="{{recommendShop}}" class="map-preview-section mt-4">
+        <map 
+          id="nearbyMap"
+          latitude="{{mapCenter.lat}}"
+          longitude="{{mapCenter.lng}}"
+          markers="{{mapMarkers}}"
+          scale="14"
+          style="width: 100%; height: 300rpx; border-radius: 24rpx; overflow: hidden;"
+        ></map>
+
+        <view class="shops-short-list mt-4">
+          <text class="setting-label mb-2 block">将被评估的周边彩站:</text>
+          <view wx:if="{{nearbyShops.length > 0}}">
+            <view wx:for="{{nearbyShops}}" wx:key="address" class="shop-list-item">
+              <text class="shop-list-title">{{index + 1}}. {{item.title}}</text>
+              <text class="shop-list-dist">{{item._distance}}m</text>
+            </view>
+          </view>
+          <view wx:else class="shop-list-item">
+            <text class="shop-list-title" style="color:#93c5fd;">地图加载中或未找到附近彩站...</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{error}}" class="error-msg">
+      {{error}}
+    </view>
+
+    <!-- Action Button -->
+    <view wx:if="{{!result}}" class="action-btn {{isPredicting || isMapLoading || (!audioPath && !manualText.trim()) ? 'disabled' : ''}}" bindtap="handlePredict">
+      <view wx:if="{{isPredicting}}" class="loading-wrapper">
+        <view class="spinner"></view>
+        <text>正在感应天地灵气...</text>
+      </view>
+      <view wx:elif="{{isMapLoading}}" class="action-wrapper">
+        <text>加载周边彩票店...</text>
+      </view>
+      <view wx:else class="action-wrapper">
+        <view class="sparkles-icon-small"></view>
+        <text>开始占卜</text>
+      </view>
+    </view>
+
+    <!-- Results Section -->
+    <view wx:if="{{result}}" class="result-section">
+      <view class="markdown-card">
+        <view class="glow-effect"></view>
+        <view wx:if="{{!result.markdown}}" class="mystical-loader">
+          <view class="crystal-ball"></view>
+          <text>正在通过虚空连接宇宙灵韵...</text>
+        </view>
+        <rich-text wx:else class="markdown-body" nodes="{{result.markdown}}"></rich-text>
+      </view>
+
+      <view wx:if="{{result.mapLinks.length > 0}}" class="shops-section">
+        <view class="shops-title">
+          <view class="pin-icon"></view>
+          <text>附近彩票店</text>
+        </view>
+        <view class="shops-grid">
+          <view wx:for="{{result.mapLinks}}" wx:key="address" class="shop-card" bindtap="openMap" data-shop="{{item}}">
+            <view class="shop-icon-wrapper">
+              <view class="pin-icon-small"></view>
+            </view>
+            <text class="shop-name">{{item.title}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="retry-btn" bindtap="resetApp">
+        <view class="refresh-icon"></view>
+        <text>重新占卜</text>
+      </view>
+    </view>
+
+  </view>
+</view>

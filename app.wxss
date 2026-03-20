@@ -1,0 +1,94 @@
+page {
+  background-color: #0f172a; /* slate-900 */
+  color: #f1f5f9; /* slate-100 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* Base utility classes manually ported from Tailwind */
+.text-center { text-align: center; }
+.font-bold { font-weight: bold; }
+.text-sm { font-size: 28rpx; }
+.text-xs { font-size: 24rpx; }
+.text-lg { font-size: 36rpx; }
+.text-2xl { font-size: 48rpx; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-center: center; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.overflow-hidden { overflow: hidden; }
+
+/* Gradients and backgrounds */
+.bg-gradient-to-br {
+  background: linear-gradient(to bottom right, #312e81, #581c87, #0f172a);
+}
+.bg-glass {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1rpx solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+}
+.bg-purple-500 { background-color: #a855f7; }
+.bg-white-5 { background-color: rgba(255, 255, 255, 0.05); }
+
+.text-transparent { color: transparent; }
+.bg-clip-text { background-clip: text; -webkit-background-clip: text; }
+.bg-text-gradient {
+  background-image: linear-gradient(to right, #e9d5ff, #fbcfe8);
+}
+.text-purple-200 { color: #e9d5ff; }
+.text-purple-300 { color: #d8b4fe; }
+.text-slate-200 { color: #e2e8f0; }
+.text-slate-400 { color: #94a3b8; }
+.text-pink-400 { color: #f472b6; }
+.text-white { color: #ffffff; }
+
+.rounded-3xl { border-radius: 48rpx; }
+.rounded-2xl { border-radius: 32rpx; }
+.rounded-xl { border-radius: 24rpx; }
+.rounded-lg { border-radius: 16rpx; }
+.rounded-full { border-radius: 9999px; }
+
+.p-6 { padding: 48rpx; }
+.p-4 { padding: 32rpx; }
+.py-4 { padding-top: 32rpx; padding-bottom: 32rpx; }
+.px-6 { padding-left: 48rpx; padding-right: 48rpx; }
+.px-4 { padding-left: 32rpx; padding-right: 32rpx; }
+.py-2_5 { padding-top: 20rpx; padding-bottom: 20rpx; }
+.mb-4 { margin-bottom: 32rpx; }
+.mt-4 { margin-top: 32rpx; }
+.mb-3 { margin-bottom: 24rpx; }
+.gap-6 { gap: 48rpx; }
+.gap-4 { gap: 32rpx; }
+.gap-2 { gap: 16rpx; }
+
+/* Shadows */
+.shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+.shadow-purple { box-shadow: 0 10px 40px rgba(168, 85, 247, 0.3); }
+
+/* Markdown Content Styling */
+.markdown-body {
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+  color: #e9d5ff;
+  font-weight: bold;
+  margin-top: 32rpx;
+  margin-bottom: 16rpx;
+}
+.markdown-body p {
+  margin-bottom: 16rpx;
+}
+.markdown-body strong {
+  color: #d8b4fe;
+  font-weight: bold;
+}
+.markdown-body ul, .markdown-body ol {
+  padding-left: 32rpx;
+  margin-bottom: 16rpx;
+}

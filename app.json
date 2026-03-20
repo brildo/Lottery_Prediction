@@ -1,0 +1,21 @@
+{
+    "pages": [
+        "pages/index/index"
+    ],
+    "window": {
+        "backgroundTextStyle": "light",
+        "navigationBarBackgroundColor": "#1e1b4b",
+        "navigationBarTitleText": "灵感彩票占卜",
+        "navigationBarTextStyle": "white"
+    },
+    "style": "v2",
+    "sitemapLocation": "sitemap.json",
+    "requiredPrivateInfos": [
+        "getLocation"
+    ],
+    "permission": {
+        "scope.userLocation": {
+            "desc": "你的位置信息将用于推荐附近的彩票店"
+        }
+    }
+}
