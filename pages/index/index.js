@@ -31,6 +31,8 @@ Page({
 
     onLoad() {
         this.initRecorder();
+        // Fetch the user's real openid from wx.cloud (persists across reinstalls)
+        this.initUserIdentity();
         // Delay welcome voice so the page finishes rendering first
         setTimeout(() => this.generateWelcomeVoice(), 1000);
 
@@ -44,14 +46,58 @@ Page({
         });
     },
 
+    // Feature 3: Get the user's real openid from WeChat CloudBase.
+    // The cloud function auto-receives openid — no login flow needed.
+    // This persists across app updates and reinstalls.
+    initUserIdentity() {
+        // Check if cached openid exists from a previous session
+        const cachedOpenId = wx.getStorageSync('userOpenId');
+        if (cachedOpenId) {
+            this.userOpenId = cachedOpenId;
+            console.log('[User] Loaded cached openid from storage');
+            return;
+        }
+        // First launch: fetch from cloud function
+        if (!wx.cloud) {
+            console.warn('[User] wx.cloud not available, using fallback local ID.');
+            this.userOpenId = 'local_' + Date.now();
+            return;
+        }
+        wx.cloud.callFunction({
+            name: 'getUserId',
+            success: (res) => {
+                const openid = res.result && res.result.openid;
+                if (openid) {
+                    this.userOpenId = openid;
+                    // Cache locally so future loads are instant
+                    wx.setStorageSync('userOpenId', openid);
+                    console.log('[User] openid fetched and cached:', openid);
+                } else {
+                    console.warn('[User] Cloud function returned no openid, using fallback.');
+                    this.userOpenId = 'cloud_fallback_' + Date.now();
+                }
+            },
+            fail: (err) => {
+                console.warn('[User] Cloud function call failed:', err, '— using fallback ID.');
+                // Fallback: generate a UUID-style local ID if cloud is unavailable
+                this.userOpenId = wx.getStorageSync('userOpenId_fallback') ||
+                    (() => {
+                        const fb = 'fb_' + Math.random().toString(36).slice(2) + Date.now();
+                        wx.setStorageSync('userOpenId_fallback', fb);
+                        return fb;
+                    })();
+            }
+        });
+    },
+
     generateWelcomeVoice() {
         const now = new Date();
         const y = now.getFullYear(), mo = now.getMonth() + 1, d = now.getDate();
         const wd = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
         const h = now.getHours();
-        
+
         let timeWord = h < 6 ? '深夜' : h < 12 ? '早上' : h < 18 ? '下午' : '晚上';
-        
+
         // Add a dynamic "daily element" so it changes slightly every time
         const elements = ['微风', '细雨', '阳光', '星光', '朝霞', '晚霞', '云气'];
         const randomElement = elements[Math.floor(Math.random() * elements.length)];
@@ -63,139 +109,145 @@ Page({
 
         // ... keep the rest of your decodeUTF8 and buildWAV code exactly the same ...
 
-      const decodeUTF8 = (buffer) => {
-          let bytes = new Uint8Array(buffer), out = '', i = 0, len = bytes.length;
-          while (i < len) {
-              let c = bytes[i++];
-              switch (c >> 4) {
-                  case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7: out += String.fromCharCode(c); break;
-                  case 12: case 13: out += String.fromCharCode(((c & 0x1F) << 6) | (bytes[i++] & 0x3F)); break;
-                  case 14: out += String.fromCharCode(((c & 0x0F) << 12) | ((bytes[i++] & 0x3F) << 6) | ((bytes[i++] & 0x3F) << 0)); break;
-              }
-          }
-          return out;
-      };
+        const decodeUTF8 = (buffer) => {
+            let bytes = new Uint8Array(buffer), out = '', i = 0, len = bytes.length;
+            while (i < len) {
+                let c = bytes[i++];
+                switch (c >> 4) {
+                    case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7: out += String.fromCharCode(c); break;
+                    case 12: case 13: out += String.fromCharCode(((c & 0x1F) << 6) | (bytes[i++] & 0x3F)); break;
+                    case 14: out += String.fromCharCode(((c & 0x0F) << 12) | ((bytes[i++] & 0x3F) << 6) | ((bytes[i++] & 0x3F) << 0)); break;
+                }
+            }
+            return out;
+        };
 
-      const buildWAV = (pcmBuf) => {
-          const SR = 16000, CH = 1, BD = 16, dLen = pcmBuf.byteLength;
-          const hdr = new ArrayBuffer(44);
-          const v = new DataView(hdr);
-          const s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
-          s(0, 'RIFF'); v.setUint32(4, 36 + dLen, true);
-          s(8, 'WAVE'); s(12, 'fmt ');
-          v.setUint32(16, 16, true); v.setUint16(20, 1, true);
-          v.setUint16(22, CH, true); v.setUint32(24, SR, true);
-          v.setUint32(28, SR * CH * BD / 8, true); v.setUint16(32, CH * BD / 8, true);
-          v.setUint16(34, BD, true); s(36, 'data'); v.setUint32(40, dLen, true);
-          const out = new Uint8Array(44 + dLen);
-          out.set(new Uint8Array(hdr), 0); out.set(new Uint8Array(pcmBuf), 44);
-          return out.buffer;
-      };
+        const buildWAV = (pcmBuf) => {
+            const SR = 16000, CH = 1, BD = 16, dLen = pcmBuf.byteLength;
+            const hdr = new ArrayBuffer(44);
+            const v = new DataView(hdr);
+            const s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+            s(0, 'RIFF'); v.setUint32(4, 36 + dLen, true);
+            s(8, 'WAVE'); s(12, 'fmt ');
+            v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+            v.setUint16(22, CH, true); v.setUint32(24, SR, true);
+            v.setUint32(28, SR * CH * BD / 8, true); v.setUint16(32, CH * BD / 8, true);
+            v.setUint16(34, BD, true); s(36, 'data'); v.setUint32(40, dLen, true);
+            const out = new Uint8Array(44 + dLen);
+            out.set(new Uint8Array(hdr), 0); out.set(new Uint8Array(pcmBuf), 44);
+            return out.buffer;
+        };
 
-      // NEW: Store raw Base64 strings, and keep a buffer for incomplete SSE lines
-      let base64AudioData = ''; 
-      let streamTextBuffer = ''; 
-      let fullWelcomeText = ''; // NEW: Variable to build the text string
-      let played = false;
+        // NEW: Store raw Base64 strings, and keep a buffer for incomplete SSE lines
+        let base64AudioData = '';
+        let streamTextBuffer = '';
+        let fullWelcomeText = ''; // NEW: Variable to build the text string
+        let played = false;
 
-      // Persist context to avoid Garbage Collection cutting off the sound
-      if (!this.welcomeAudio) {
-          this.welcomeAudio = wx.createInnerAudioContext();
-          this.welcomeAudio.obeyMuteSwitch = false;
-          this.welcomeAudio.onError((e) => console.warn('[Welcome] play error:', e));
-      }
+        // Persist context to avoid Garbage Collection cutting off the sound
+        if (!this.welcomeAudio) {
+            this.welcomeAudio = wx.createInnerAudioContext();
+            this.welcomeAudio.obeyMuteSwitch = false;
+            this.welcomeAudio.onError((e) => console.warn('[Welcome] play error:', e));
+        }
 
-      const tryPlay = () => {
-          if (played || !base64AudioData) return;
-          played = true;
-          try {
-              // Decode the ENTIRE base64 string at once to prevent boundary corruption
-              const pcmBuffer = wx.base64ToArrayBuffer(base64AudioData);
-              const destPath = `${wx.env.USER_DATA_PATH}/welcome_voice.wav`;
-              
-              fm.writeFileSync(destPath, wx.arrayBufferToBase64(buildWAV(pcmBuffer)), 'base64');
-              
-              this.welcomeAudio.src = destPath;
-              this.welcomeAudio.play();
-              console.log('[Welcome] Playing PCM WAV, total bytes:', pcmBuffer.byteLength);
-          } catch (e) { console.error('[Welcome] play process error:', e); }
-      };
+        const tryPlay = () => {
+            if (played || !base64AudioData) return;
+            played = true;
+            try {
+                // Decode the ENTIRE base64 string at once to prevent boundary corruption
+                const pcmBuffer = wx.base64ToArrayBuffer(base64AudioData);
+                const destPath = `${wx.env.USER_DATA_PATH}/welcome_voice.wav`;
 
-      const rtask = wx.request({
-          url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-          method: 'POST',
-          enableChunked: true,
-          header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.QWEN_API_KEY}` },
-          data: {
-              model: 'qwen3-omni-flash-2025-12-01',
-              messages: [{ role: 'user', content: userPrompt }],
-              modalities: ['text', 'audio'],
-              audio: { voice: 'Cherry', format: 'pcm' },
-              stream: true,
-              stream_options: { include_usage: true }
-          },
-          success: (res) => {
-              // Failsafe in case stream completes but [DONE] was somehow missed
-              if (res.statusCode === 200) { tryPlay(); }
-          },
-          fail: (err) => { console.warn('[Welcome] API fail:', err); }
-      });
+                fm.writeFileSync(destPath, wx.arrayBufferToBase64(buildWAV(pcmBuffer)), 'base64');
 
-      rtask.onChunkReceived((resp) => {
-          try {
-              // Append new chunk to the leftover buffer from the last chunk
-              streamTextBuffer += decodeUTF8(resp.data);
-              
-              let lines = streamTextBuffer.split('\n');
-              
-              // The last element is either an empty string (if it ended perfectly with \n)
-              // or an incomplete string. We pop it off and save it for the next chunk!
-              streamTextBuffer = lines.pop(); 
+                this.welcomeAudio.src = destPath;
+                this.welcomeAudio.play();
+                console.log('[Welcome] Playing PCM WAV, total bytes:', pcmBuffer.byteLength);
+            } catch (e) { console.error('[Welcome] play process error:', e); }
+        };
 
-              for (let line of lines) {
-                  line = line.trim();
-                  if (!line) continue;
-                  
-                  if (line === 'data: [DONE]') { 
-                      tryPlay(); 
-                      return; 
-                  }
-                  
-                  if (line.startsWith('data: ')) {
-                    try {
-                      const p = JSON.parse(line.slice(6));
-                      if (p.choices && p.choices.length > 0 && p.choices[0].delta) {
-                          // 1. Capture the Audio
-                          if (p.choices[0].delta.audio && p.choices[0].delta.audio.data) {
-                              base64AudioData += p.choices[0].delta.audio.data;
-                          }
-                          // 2. Capture the Text and update the UI
-                          if (p.choices[0].delta.content) {
-                              fullWelcomeText += p.choices[0].delta.content;
-                              this.setData({ welcomeText: fullWelcomeText });
-                          }
-                      }
-                          
-                      } catch (parseErr) {
-                          console.error('[Welcome] JSON parse error on valid line:', parseErr, line);
-                      }
-                  }
-              }
-          } catch (decodeErr) { 
-              console.error('[Welcome] Decode chunk error:', decodeErr);
-          }
-      });
-  },
+        const rtask = wx.request({
+            url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+            method: 'POST',
+            enableChunked: true,
+            header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.QWEN_API_KEY}` },
+            data: {
+                model: 'qwen3-omni-flash-2025-12-01',
+                // Feature 2: Use Serena (苏瑶) — "温柔小姐姐" voice, perfect for fortune-telling
+                // Disable thinking mode to prevent it from overriding voice characteristics
+                messages: [
+                    { role: 'system', content: '你是一位温柔知性的女性占卜师，请始终使用温柔的女声语气回答。' },
+                    { role: 'user', content: userPrompt }
+                ],
+                modalities: ['text', 'audio'],
+                audio: { voice: 'Serena', format: 'pcm' },
+                enable_thinking: false,
+                stream: true,
+                stream_options: { include_usage: true }
+            },
+            success: (res) => {
+                // Failsafe in case stream completes but [DONE] was somehow missed
+                if (res.statusCode === 200) { tryPlay(); }
+            },
+            fail: (err) => { console.warn('[Welcome] API fail:', err); }
+        });
+
+        rtask.onChunkReceived((resp) => {
+            try {
+                // Append new chunk to the leftover buffer from the last chunk
+                streamTextBuffer += decodeUTF8(resp.data);
+
+                let lines = streamTextBuffer.split('\n');
+
+                // The last element is either an empty string (if it ended perfectly with \n)
+                // or an incomplete string. We pop it off and save it for the next chunk!
+                streamTextBuffer = lines.pop();
+
+                for (let line of lines) {
+                    line = line.trim();
+                    if (!line) continue;
+
+                    if (line === 'data: [DONE]') {
+                        tryPlay();
+                        return;
+                    }
+
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const p = JSON.parse(line.slice(6));
+                            if (p.choices && p.choices.length > 0 && p.choices[0].delta) {
+                                // 1. Capture the Audio
+                                if (p.choices[0].delta.audio && p.choices[0].delta.audio.data) {
+                                    base64AudioData += p.choices[0].delta.audio.data;
+                                }
+                                // 2. Capture the Text and update the UI
+                                if (p.choices[0].delta.content) {
+                                    fullWelcomeText += p.choices[0].delta.content;
+                                    this.setData({ welcomeText: fullWelcomeText });
+                                }
+                            }
+
+                        } catch (parseErr) {
+                            console.error('[Welcome] JSON parse error on valid line:', parseErr, line);
+                        }
+                    }
+                }
+            } catch (decodeErr) {
+                console.error('[Welcome] Decode chunk error:', decodeErr);
+            }
+        });
+    },
 
 
 
 
-  onUnload() {
-    innerAudioContext.destroy();
-    if (this.welcomeAudio) {
-        this.welcomeAudio.destroy();
-    }
-},
+    onUnload() {
+        innerAudioContext.destroy();
+        if (this.welcomeAudio) {
+            this.welcomeAudio.destroy();
+        }
+    },
 
     initRecorder() {
         recorderManager.onStart(() => {
@@ -419,35 +471,39 @@ Page({
     },
 
     async handlePredict() {
-      // Scroll to top so user sees the crystal ball animation
-      wx.pageScrollTo({ scrollTop: 0, duration: 300 });
+        // Scroll to top so user sees the crystal ball animation
+        wx.pageScrollTo({ scrollTop: 0, duration: 300 });
 
-      // --- NEW: Daily Rate Limit Check ---
-      const todayStr = new Date().toDateString();
-      let usageData = wx.getStorageSync('dailyUsage') || { date: todayStr, count: 0 };
-      
-      // If it's a new day, reset the counter
-      if (usageData.date !== todayStr) {
-          usageData = { date: todayStr, count: 0 };
-      }
-      
-      // Block if they hit the limit
-      if (usageData.count >= MAX_DAILY_PREDICTIONS) {
-          this.setData({ error: `今日灵气已耗尽，请明日再来（每日限额 ${MAX_DAILY_PREDICTIONS} 次）。` });
-          return;
-      }
-      // -----------------------------------
+        // --- Feature 3: Per-User Daily Rate Limit (keyed by real openid from wx.cloud) ---
+        // userOpenId is set by initUserIdentity() in onLoad.
+        // Falls back gracefully if cloud is unavailable.
+        const uid = this.userOpenId || 'anonymous';
+        const dailyKey = `dailyUsage_${uid}`;
+        const todayStr = new Date().toDateString();
+        let usageData = wx.getStorageSync(dailyKey) || { date: todayStr, count: 0 };
 
-      if (!this.data.audioPath && !this.data.manualText.trim()) {
-          this.setData({ error: "请录制语音或输入文字描述您的经历。" });
-          return;
-      }
-      if (this.data.isMapLoading) {
-          this.setData({ error: "请等待附近彩站加载完毕。" });
-          return;
-      }
+        // If it's a new day, reset the counter
+        if (usageData.date !== todayStr) {
+            usageData = { date: todayStr, count: 0 };
+        }
 
-      // ... Keep your existing prediction logic ...
+        // Block if they hit the limit
+        if (usageData.count >= MAX_DAILY_PREDICTIONS) {
+            this.setData({ error: `今日灵气已耗尽，请明日再来（每日限额 ${MAX_DAILY_PREDICTIONS} 次）。` });
+            return;
+        }
+        // ---------------------------------------------------------------------------
+
+        if (!this.data.audioPath && !this.data.manualText.trim()) {
+            this.setData({ error: "请录制语音或输入文字描述您的经历。" });
+            return;
+        }
+        if (this.data.isMapLoading) {
+            this.setData({ error: "请等待附近彩站加载完毕。" });
+            return;
+        }
+
+        // ... Keep your existing prediction logic ...
 
         this.setData({
             isPredicting: true,
@@ -591,13 +647,12 @@ Page({
                             errMsg = `API错误: ${res.data.message}`;
                         }
                         this.setData({ error: errMsg, result: null });
-                    }else {
-                      // --- NEW: Increment and save usage on success ---
-                      usageData.count += 1;
-                      wx.setStorageSync('dailyUsage', usageData);
-                      // ------------------------------------------------
-                  }
-              },
+                    } else {
+                        // Feature 3: Increment and save per-user daily usage on success
+                        usageData.count += 1;
+                        wx.setStorageSync(dailyKey, usageData);
+                    }
+                },
                 fail: (err) => {
                     clearTimeout(animationTimer);
                     console.error("Qwen request fail:", err);

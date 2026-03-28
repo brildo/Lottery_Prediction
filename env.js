@@ -1,9 +1,10 @@
-// Store configuration keys here
-// IMPORTANT: For production, do not store sensitive keys in the client code.
-// Fetch them from a backend server or use Cloud Functions.
+// Store configuration keys here.
+// IMPORTANT: This file is listed in .gitignore — it will NOT be pushed to GitHub.
+// Copy env.example.js -> env.js and fill in your real keys.
 
 module.exports = {
-    QWEN_API_KEY: "sk-93f7678b29fb4417a8faa5c4add43818",
-    AMAP_KEY: "f535202642a5bcfb4a0fa04ea13289ee",
-    TENCENT_MAP_KEY: "OB4BZ-D4W3U-B7VVO-4PJWW-6TKDJ-WPB77" // TENCENT_MAP_KEY used in the web app
+    QWEN_API_KEY: "sk-e961ddaff18e47029aa354772c5a1986",
+    AMAP_KEY: "5955fd4ea85bba5d0bacaabcf6957ce4",
+    // WeChat CloudBase environment ID — found in DevTools → Cloud Development → Environment
+    CLOUD_ENV_ID: "YOUR_CLOUD_ENV_ID"
 };
