@@ -122,9 +122,13 @@ Page({
             return out;
         };
 
+        // const buildWAV = (pcmBuf) => {
+        //     const SR = 16000, CH = 1, BD = 16, dLen = pcmBuf.byteLength;
+        //     const hdr = new ArrayBuffer(44);
         const buildWAV = (pcmBuf) => {
-            const SR = 16000, CH = 1, BD = 16, dLen = pcmBuf.byteLength;
-            const hdr = new ArrayBuffer(44);
+          // Change SR from 16000 to 24000
+          const SR = 24000, CH = 1, BD = 16, dLen = pcmBuf.byteLength; 
+          const hdr = new ArrayBuffer(44);
             const v = new DataView(hdr);
             const s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
             s(0, 'RIFF'); v.setUint32(4, 36 + dLen, true);
