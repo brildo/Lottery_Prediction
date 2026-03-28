@@ -3,12 +3,14 @@ const amapFile = require('../../libs/amap-wx.js');
 const recorderManager = wx.getRecorderManager();
 const fm = wx.getFileSystemManager();
 const innerAudioContext = wx.createInnerAudioContext();
+const MAX_DAILY_PREDICTIONS = 3; // Users can only predict 3 times per day
 // Note: welcomeAudio is created inside generateWelcomeVoice() to avoid
 // calling wx APIs at module init time (causes real-phone loading issues)
 
 
 Page({
     data: {
+        welcomeText: "", // NEW: Store the welcome text
         isRecording: false,
         audioPath: null,
         isPlaying: false,
@@ -45,108 +47,155 @@ Page({
     generateWelcomeVoice() {
         const now = new Date();
         const y = now.getFullYear(), mo = now.getMonth() + 1, d = now.getDate();
-        const wd = ['\u65e5', '\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d'][now.getDay()];
+        const wd = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
         const h = now.getHours();
-        const timeWord = h < 6 ? '\u6df1\u591c' : h < 12 ? '\u65e9\u4e0a' : h < 18 ? '\u4e0b\u5348' : '\u665a\u4e0a';
-        const userPrompt = `\u73b0\u5728\u662f${y}\u5e74${mo}\u6708${d}\u65e5\uff0c\u661f\u671f${wd}\uff0c${timeWord}\u3002\u8bf7\u751f\u6210\u4e00\u53e5\u4e0d\u8d85\u8fc715\u5b57\u7684\u5f69\u7968\u5409\u7965\u8fce\u5bbe\u8bed\uff0c\u53ea\u8f93\u51fa\u8fce\u5bbe\u8bed\u672c\u8eab\u3002`;
+        
+        let timeWord = h < 6 ? '深夜' : h < 12 ? '早上' : h < 18 ? '下午' : '晚上';
+        
+        // Add a dynamic "daily element" so it changes slightly every time
+        const elements = ['微风', '细雨', '阳光', '星光', '朝霞', '晚霞', '云气'];
+        const randomElement = elements[Math.floor(Math.random() * elements.length)];
 
-        const decodeUTF8 = (buffer) => {
-            let bytes = new Uint8Array(buffer), out = '', i = 0, len = bytes.length;
-            while (i < len) {
-                let c = bytes[i++];
-                switch (c >> 4) {
-                    case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7: out += String.fromCharCode(c); break;
-                    case 12: case 13: out += String.fromCharCode(((c & 0x1F) << 6) | (bytes[i++] & 0x3F)); break;
-                    case 14: out += String.fromCharCode(((c & 0x0F) << 12) | ((bytes[i++] & 0x3F) << 6) | ((bytes[i++] & 0x3F) << 0)); break;
-                }
-            }
-            return out;
-        };
+        // Explicitly instruct the model to use a gentle female persona
+        const userPrompt = `系统指令：你现在是一位温柔、知性、亲切的女性占卜师。
+当前环境：${y}年${mo}月${d}日，星期${wd}，${timeWord}，伴随着${randomElement}。
+任务：请用极其温柔和治愈的女性语气，生成一句不超过15字的彩票吉祥迎宾语。只输出迎宾语本身，不要加任何标点以外的解释。`;
 
-        // PCM from qwen3-omni: 16000 Hz mono 16-bit
-        // Evidence: 24000 Hz header caused 1.5x chipmunk → actual = 24000/1.5 = 16000 Hz
-        const buildWAV = (pcmBuf) => {
-            const SR = 16000, CH = 1, BD = 16, dLen = pcmBuf.byteLength;
-            const hdr = new ArrayBuffer(44);
-            const v = new DataView(hdr);
-            const s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
-            s(0, 'RIFF'); v.setUint32(4, 36 + dLen, true);
-            s(8, 'WAVE'); s(12, 'fmt ');
-            v.setUint32(16, 16, true); v.setUint16(20, 1, true);
-            v.setUint16(22, CH, true); v.setUint32(24, SR, true);
-            v.setUint32(28, SR * CH * BD / 8, true); v.setUint16(32, CH * BD / 8, true);
-            v.setUint16(34, BD, true); s(36, 'data'); v.setUint32(40, dLen, true);
-            const out = new Uint8Array(44 + dLen);
-            out.set(new Uint8Array(hdr), 0); out.set(new Uint8Array(pcmBuf), 44);
-            return out.buffer;
-        };
+        // ... keep the rest of your decodeUTF8 and buildWAV code exactly the same ...
 
-        let audioBuffers = [], played = false;
+      const decodeUTF8 = (buffer) => {
+          let bytes = new Uint8Array(buffer), out = '', i = 0, len = bytes.length;
+          while (i < len) {
+              let c = bytes[i++];
+              switch (c >> 4) {
+                  case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7: out += String.fromCharCode(c); break;
+                  case 12: case 13: out += String.fromCharCode(((c & 0x1F) << 6) | (bytes[i++] & 0x3F)); break;
+                  case 14: out += String.fromCharCode(((c & 0x0F) << 12) | ((bytes[i++] & 0x3F) << 6) | ((bytes[i++] & 0x3F) << 0)); break;
+              }
+          }
+          return out;
+      };
 
-        // Dual-trigger: play on whichever fires last — [DONE] (PC) or success (phone)
-        const tryPlay = () => {
-            if (played || audioBuffers.length === 0) return;
-            played = true;
-            try {
-                const totalLen = audioBuffers.reduce((a, b) => a + b.byteLength, 0);
-                const pcm = new Uint8Array(totalLen);
-                let off = 0;
-                for (const buf of audioBuffers) { pcm.set(new Uint8Array(buf), off); off += buf.byteLength; }
-                const destPath = `${wx.env.USER_DATA_PATH}/welcome_voice.wav`;
-                fm.writeFileSync(destPath, wx.arrayBufferToBase64(buildWAV(pcm.buffer)), 'base64');
-                const wAudio = wx.createInnerAudioContext();
-                wAudio.obeyMuteSwitch = false;
-                wAudio.onError((e) => console.warn('[Welcome] play error:', e));
-                wAudio.src = destPath;
-                wAudio.play();
-                console.log('[Welcome] Playing PCM WAV (16kHz mono), bytes:', totalLen);
-            } catch (e) { console.error('[Welcome] error:', e); }
-        };
+      const buildWAV = (pcmBuf) => {
+          const SR = 16000, CH = 1, BD = 16, dLen = pcmBuf.byteLength;
+          const hdr = new ArrayBuffer(44);
+          const v = new DataView(hdr);
+          const s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+          s(0, 'RIFF'); v.setUint32(4, 36 + dLen, true);
+          s(8, 'WAVE'); s(12, 'fmt ');
+          v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+          v.setUint16(22, CH, true); v.setUint32(24, SR, true);
+          v.setUint32(28, SR * CH * BD / 8, true); v.setUint16(32, CH * BD / 8, true);
+          v.setUint16(34, BD, true); s(36, 'data'); v.setUint32(40, dLen, true);
+          const out = new Uint8Array(44 + dLen);
+          out.set(new Uint8Array(hdr), 0); out.set(new Uint8Array(pcmBuf), 44);
+          return out.buffer;
+      };
 
-        const rtask = wx.request({
-            url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-            method: 'POST',
-            enableChunked: true,
-            header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.QWEN_API_KEY}` },
-            data: {
-                model: 'qwen3-omni-flash-2025-12-01',
-                messages: [{ role: 'user', content: userPrompt }],
-                modalities: ['text', 'audio'],
-                audio: { voice: 'Cherry', format: 'pcm' },
-                stream: true,
-                stream_options: { include_usage: true }
-            },
-            success: (res) => {
-                if (res.statusCode !== 200) { console.warn('[Welcome] HTTP error:', res.statusCode); return; }
-                tryPlay(); // fires after all data on phone
-            },
-            fail: (err) => { console.warn('[Welcome] fail:', err); }
-        });
-        rtask.onChunkReceived((resp) => {
-            try {
-                const txt = decodeUTF8(resp.data);
-                for (let line of txt.split('\n')) {
-                    line = line.trim();
-                    if (!line) continue;
-                    if (line === 'data: [DONE]') { tryPlay(); return; } // fires after all data on PC
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const p = JSON.parse(line.slice(6));
-                            if (p.choices && p.choices[0].delta && p.choices[0].delta.audio && p.choices[0].delta.audio.data)
-                                audioBuffers.push(wx.base64ToArrayBuffer(p.choices[0].delta.audio.data));
-                        } catch (_) { }
-                    }
-                }
-            } catch (_) { }
-        });
-    },
+      // NEW: Store raw Base64 strings, and keep a buffer for incomplete SSE lines
+      let base64AudioData = ''; 
+      let streamTextBuffer = ''; 
+      let fullWelcomeText = ''; // NEW: Variable to build the text string
+      let played = false;
+
+      // Persist context to avoid Garbage Collection cutting off the sound
+      if (!this.welcomeAudio) {
+          this.welcomeAudio = wx.createInnerAudioContext();
+          this.welcomeAudio.obeyMuteSwitch = false;
+          this.welcomeAudio.onError((e) => console.warn('[Welcome] play error:', e));
+      }
+
+      const tryPlay = () => {
+          if (played || !base64AudioData) return;
+          played = true;
+          try {
+              // Decode the ENTIRE base64 string at once to prevent boundary corruption
+              const pcmBuffer = wx.base64ToArrayBuffer(base64AudioData);
+              const destPath = `${wx.env.USER_DATA_PATH}/welcome_voice.wav`;
+              
+              fm.writeFileSync(destPath, wx.arrayBufferToBase64(buildWAV(pcmBuffer)), 'base64');
+              
+              this.welcomeAudio.src = destPath;
+              this.welcomeAudio.play();
+              console.log('[Welcome] Playing PCM WAV, total bytes:', pcmBuffer.byteLength);
+          } catch (e) { console.error('[Welcome] play process error:', e); }
+      };
+
+      const rtask = wx.request({
+          url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+          method: 'POST',
+          enableChunked: true,
+          header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.QWEN_API_KEY}` },
+          data: {
+              model: 'qwen3-omni-flash-2025-12-01',
+              messages: [{ role: 'user', content: userPrompt }],
+              modalities: ['text', 'audio'],
+              audio: { voice: 'Cherry', format: 'pcm' },
+              stream: true,
+              stream_options: { include_usage: true }
+          },
+          success: (res) => {
+              // Failsafe in case stream completes but [DONE] was somehow missed
+              if (res.statusCode === 200) { tryPlay(); }
+          },
+          fail: (err) => { console.warn('[Welcome] API fail:', err); }
+      });
+
+      rtask.onChunkReceived((resp) => {
+          try {
+              // Append new chunk to the leftover buffer from the last chunk
+              streamTextBuffer += decodeUTF8(resp.data);
+              
+              let lines = streamTextBuffer.split('\n');
+              
+              // The last element is either an empty string (if it ended perfectly with \n)
+              // or an incomplete string. We pop it off and save it for the next chunk!
+              streamTextBuffer = lines.pop(); 
+
+              for (let line of lines) {
+                  line = line.trim();
+                  if (!line) continue;
+                  
+                  if (line === 'data: [DONE]') { 
+                      tryPlay(); 
+                      return; 
+                  }
+                  
+                  if (line.startsWith('data: ')) {
+                    try {
+                      const p = JSON.parse(line.slice(6));
+                      if (p.choices && p.choices.length > 0 && p.choices[0].delta) {
+                          // 1. Capture the Audio
+                          if (p.choices[0].delta.audio && p.choices[0].delta.audio.data) {
+                              base64AudioData += p.choices[0].delta.audio.data;
+                          }
+                          // 2. Capture the Text and update the UI
+                          if (p.choices[0].delta.content) {
+                              fullWelcomeText += p.choices[0].delta.content;
+                              this.setData({ welcomeText: fullWelcomeText });
+                          }
+                      }
+                          
+                      } catch (parseErr) {
+                          console.error('[Welcome] JSON parse error on valid line:', parseErr, line);
+                      }
+                  }
+              }
+          } catch (decodeErr) { 
+              console.error('[Welcome] Decode chunk error:', decodeErr);
+          }
+      });
+  },
 
 
 
 
-    onUnload() {
-        innerAudioContext.destroy();
-    },
+  onUnload() {
+    innerAudioContext.destroy();
+    if (this.welcomeAudio) {
+        this.welcomeAudio.destroy();
+    }
+},
 
     initRecorder() {
         recorderManager.onStart(() => {
@@ -370,17 +419,35 @@ Page({
     },
 
     async handlePredict() {
-        // Scroll to top so user sees the crystal ball animation
-        wx.pageScrollTo({ scrollTop: 0, duration: 300 });
+      // Scroll to top so user sees the crystal ball animation
+      wx.pageScrollTo({ scrollTop: 0, duration: 300 });
 
-        if (!this.data.audioPath && !this.data.manualText.trim()) {
-            this.setData({ error: "请录制语音或输入文字描述您的经历。" });
-            return;
-        }
-        if (this.data.isMapLoading) {
-            this.setData({ error: "请等待附近彩站加载完毕。" });
-            return;
-        }
+      // --- NEW: Daily Rate Limit Check ---
+      const todayStr = new Date().toDateString();
+      let usageData = wx.getStorageSync('dailyUsage') || { date: todayStr, count: 0 };
+      
+      // If it's a new day, reset the counter
+      if (usageData.date !== todayStr) {
+          usageData = { date: todayStr, count: 0 };
+      }
+      
+      // Block if they hit the limit
+      if (usageData.count >= MAX_DAILY_PREDICTIONS) {
+          this.setData({ error: `今日灵气已耗尽，请明日再来（每日限额 ${MAX_DAILY_PREDICTIONS} 次）。` });
+          return;
+      }
+      // -----------------------------------
+
+      if (!this.data.audioPath && !this.data.manualText.trim()) {
+          this.setData({ error: "请录制语音或输入文字描述您的经历。" });
+          return;
+      }
+      if (this.data.isMapLoading) {
+          this.setData({ error: "请等待附近彩站加载完毕。" });
+          return;
+      }
+
+      // ... Keep your existing prediction logic ...
 
         this.setData({
             isPredicting: true,
@@ -524,8 +591,13 @@ Page({
                             errMsg = `API错误: ${res.data.message}`;
                         }
                         this.setData({ error: errMsg, result: null });
-                    }
-                },
+                    }else {
+                      // --- NEW: Increment and save usage on success ---
+                      usageData.count += 1;
+                      wx.setStorageSync('dailyUsage', usageData);
+                      // ------------------------------------------------
+                  }
+              },
                 fail: (err) => {
                     clearTimeout(animationTimer);
                     console.error("Qwen request fail:", err);

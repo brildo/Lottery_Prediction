@@ -3,7 +3,36 @@
   background: linear-gradient(to bottom right, #1e1b4b, #4c1d95, #0f172a);
   padding-bottom: 60rpx;
 }
+/* --- Welcome Banner Styles --- */
+.welcome-banner {
+  margin-top: 40rpx;
+  padding: 16rpx 40rpx;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1rpx solid rgba(216, 180, 254, 0.2);
+  border-radius: 32rpx;
+  display: inline-block;
+  animation: fadeInDown 0.6s ease-out forwards;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.2);
+}
 
+.welcome-text {
+  font-size: 28rpx;
+  color: #fbcfe8; /* Soft pink to contrast with the purple */
+  font-style: italic;
+  letter-spacing: 2rpx;
+  line-height: 1.5;
+}
+
+@keyframes fadeInDown {
+  from { 
+    opacity: 0; 
+    transform: translateY(-15rpx); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
 .header {
   padding: 80rpx 48rpx 48rpx;
   text-align: center;

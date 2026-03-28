@@ -6,6 +6,10 @@
     </view>
     <view class="title">灵感彩票占卜</view>
     <view class="subtitle">倾听你的日常，洞察幸运数字</view>
+    
+    <view class="welcome-banner" wx:if="{{welcomeText}}">
+      <text class="welcome-text">“{{welcomeText}}”</text>
+    </view>
   </view>
 
   <!-- Main Content -->
