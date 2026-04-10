@@ -295,6 +295,7 @@
 .mt-4 { margin-top: 40rpx; }
 
 .row-between {
+  display: flex; 
   flex-direction: row;
   align-items: center;
   justify-content: space-between;

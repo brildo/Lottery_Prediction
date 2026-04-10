@@ -8,7 +8,6 @@
         "navigationBarTitleText": "灵感彩票占卜",
         "navigationBarTextStyle": "white"
     },
-    "style": "v2",
     "sitemapLocation": "sitemap.json",
     "requiredPrivateInfos": [
         "getLocation"

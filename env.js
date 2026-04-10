@@ -6,5 +6,4 @@ module.exports = {
     QWEN_API_KEY: "sk-e961ddaff18e47029aa354772c5a1986",
     AMAP_KEY: "5955fd4ea85bba5d0bacaabcf6957ce4",
     // WeChat CloudBase environment ID — found in DevTools → Cloud Development → Environment
-    CLOUD_ENV_ID: "YOUR_CLOUD_ENV_ID"
 };

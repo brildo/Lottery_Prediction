@@ -11,7 +11,7 @@
       <text class="welcome-text">“{{welcomeText}}”</text>
     </view>
   </view>
-
+</view>
   <!-- Main Content -->
   <view class="main-content">
     
@@ -32,7 +32,6 @@
               <view wx:if="{{isRecording}}" class="record-ring"></view>
             </view>
           </view>
-          
           <view wx:else class="audio-player">
             <view class="play-btn" bindtap="playAudio">
               <view class="{{isPlaying ? 'pause-icon' : 'play-icon'}}"></view>
@@ -59,6 +58,7 @@
           class="text-input"
           value="{{manualText}}"
           bindinput="onTextInput"
+          bindblur="onTextBlur" 
           placeholder="例如：今天早上出门看到一只橘猫在抓蝴蝶..."
           placeholder-class="placeholder"
         />
@@ -97,6 +97,8 @@
         <text class="setting-label no-mb">获取附近彩票店推荐</text>
         <switch checked="{{recommendShop}}" bindchange="toggleRecommendShop" color="#a855f7" />
       </view>
+      
+      <view id="actionBtn" wx:if="{{!result}}" class="action-btn {{isPredicting || isMapLoading || (!audioPath && !manualText.trim()) ? 'disabled' : ''}}" bindtap="handlePredict">
 
       <view wx:if="{{recommendShop}}" class="setting-group mt-4">
         <view class="row-between" style="display:flex;">
@@ -129,11 +131,12 @@
         <view class="shops-short-list mt-4">
           <text class="setting-label mb-2 block">将被评估的周边彩站:</text>
           <view wx:if="{{nearbyShops.length > 0}}">
-            <view wx:for="{{nearbyShops}}" wx:key="address" class="shop-list-item">
+            <view wx:for="{{nearbyShops}}" wx:key="address" class="shop-list-item" bindtap="openMap" data-shop="{{item}}">
               <text class="shop-list-title">{{index + 1}}. {{item.title}}</text>
               <text class="shop-list-dist">{{item._distance}}m</text>
             </view>
           </view>
+
           <view wx:else class="shop-list-item">
             <text class="shop-list-title" style="color:#93c5fd;">地图加载中或未找到附近彩站...</text>
           </view>

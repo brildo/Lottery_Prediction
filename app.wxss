@@ -18,7 +18,7 @@ page {
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
 .items-center { align-items: center; }
-.justify-center { justify-center: center; }
+.justify-center { justify-content: center; }
 .relative { position: relative; }
 .absolute { position: absolute; }
 .overflow-hidden { overflow: hidden; }
