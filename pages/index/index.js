@@ -3,7 +3,7 @@ const amapFile = require('../../libs/amap-wx.js');
 const recorderManager = wx.getRecorderManager();
 const fm = wx.getFileSystemManager();
 const innerAudioContext = wx.createInnerAudioContext();
-const MAX_DAILY_PREDICTIONS = 1; // Users can only predict 3 times per day
+const MAX_DAILY_PREDICTIONS = 1; // Users can only predict 1 times per day
 // Note: welcomeAudio is created inside generateWelcomeVoice() to avoid
 // calling wx APIs at module init time (causes real-phone loading issues)
 
@@ -648,46 +648,28 @@ Page({
             };
 
             const requestTask = wx.request({
-                url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-                method: 'POST',
-                enableChunked: true,
-                header: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${env.QWEN_API_KEY}`
-                },
-                data: {
-                    model: 'qwen3-omni-flash-2025-12-01',
-                    messages: [{ role: "user", content: userContent }],
-                    modalities: ['text', 'audio'],
-                    audio: { voice: 'Serena', format: 'pcm' },
-                    stream: true,
-                    stream_options: { include_usage: true }
-                },
-                success: (res) => {
-                    this.setData({ isPredicting: false });
-                    if (res.statusCode !== 200) {
-                        this.setData({ isAnimationFinished: true });
-                        console.error("Qwen API HTTP Error:", res.statusCode, res.data);
-                        let errMsg = `API错误 ${res.statusCode}: 请求失败`;
-                        if (res.data && res.data.error && res.data.error.message) {
-                            errMsg = `API错误: ${res.data.error.message}`;
-                        } else if (res.data && res.data.message) {
-                            errMsg = `API错误: ${res.data.message}`;
-                        }
-                        this.setData({ error: errMsg, result: null });
-                    } else {
-                        // Feature 3: Increment and save per-user daily usage on success
-                        usageData.count += 1;
-                        wx.setStorageSync(dailyKey, usageData);
-                        tryPlay();
-                    }
-                },
-                fail: (err) => {
-                    this.setData({ isAnimationFinished: true });
-                    console.error("Qwen request fail:", err);
-                    this.setData({ error: "请求失败，请检查网络或API Key。", isPredicting: false });
-                }
-            });
+              // Replace with your actual Vercel URL
+              url: '[https://lottery-backend-khaki.vercel.app/api/predict](https://lottery-backend-khaki.vercel.app/api/predict)', 
+              method: 'POST',
+              data: {
+                  messages: [{ role: "user", content: userContent }],
+                  stream: false
+              },
+              success: (res) => {
+                  if (res.data.success) {
+                      const content = res.data.data.choices[0].message.content;
+                      this.setData({
+                          isAnimationFinished: true,
+                          'result.markdown': content
+                      });
+                  } else {
+                      this.setData({ error: "占卜失败" });
+                  }
+              },
+              fail: (err) => {
+                  this.setData({ error: "请求失败，请检查网络" });
+              }
+          });
 
             requestTask.onChunkReceived((response) => {
                 try {

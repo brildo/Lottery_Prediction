@@ -11,8 +11,8 @@
       <text class="welcome-text">“{{welcomeText}}”</text>
     </view>
   </view>
-</view>
-  <!-- Main Content -->
+
+  <!-- Main Content (Now properly inside the container) -->
   <view class="main-content">
     
     <!-- Input Section -->
@@ -48,13 +48,18 @@
           </view>
         </view>
 
+        <!-- Divider dynamically changes based on audio state -->
         <view class="divider" wx:if="{{!audioPath}}">
           <view class="line"></view>
           <text class="or-text">或输入文字</text>
         </view>
+        <view class="divider" wx:else>
+          <view class="line"></view>
+          <text class="or-text">补充文字描述 (可选)</text>
+        </view>
 
+        <!-- Textarea now remains visible to allow combination of voice and text -->
         <textarea
-          wx:if="{{!audioPath}}"
           class="text-input"
           value="{{manualText}}"
           bindinput="onTextInput"
@@ -62,10 +67,6 @@
           placeholder="例如：今天早上出门看到一只橘猫在抓蝴蝶..."
           placeholder-class="placeholder"
         />
-        
-        <view wx:if="{{audioPath}}" class="mt-4 text-center">
-          <text class="or-text" style="text-decoration: underline;" bindtap="clearAudio">删除语音并使用文字输入</text>
-        </view>
       </view>
     </view>
 
@@ -98,8 +99,6 @@
         <switch checked="{{recommendShop}}" bindchange="toggleRecommendShop" color="#a855f7" />
       </view>
       
-      <view id="actionBtn" wx:if="{{!result}}" class="action-btn {{isPredicting || isMapLoading || (!audioPath && !manualText.trim()) ? 'disabled' : ''}}" bindtap="handlePredict">
-
       <view wx:if="{{recommendShop}}" class="setting-group mt-4">
         <view class="row-between" style="display:flex;">
           <text class="setting-label no-mb">搜索半径</text>
@@ -148,8 +147,8 @@
       {{error}}
     </view>
 
-    <!-- Action Button -->
-    <view wx:if="{{!result}}" class="action-btn {{isPredicting || isMapLoading || (!audioPath && !manualText.trim()) ? 'disabled' : ''}}" bindtap="handlePredict">
+    <!-- Action Button (Properly placed and ID assigned) -->
+    <view id="actionBtn" wx:if="{{!result}}" class="action-btn {{isPredicting || isMapLoading || (!audioPath && !manualText.trim()) ? 'disabled' : ''}}" bindtap="handlePredict">
       <view wx:if="{{isPredicting}}" class="loading-wrapper">
         <view class="spinner"></view>
         <text>正在感应天地灵气...</text>
